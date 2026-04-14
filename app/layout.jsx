@@ -1,5 +1,6 @@
 import { Inter } from "next/font/google";
 import { SessionProvider } from "next-auth/react";
+import { SocketProvider } from "@/context/SocketContext"; 
 import "./globals.css";
 
 const inter = Inter({
@@ -17,8 +18,9 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${inter.className} h-full antialiased`}>
       <body className="h-full w-full bg-gray-100 text-gray-900">
-        {/* SessionProvider allows useSession() to work in all client components */}
-        <SessionProvider>{children}</SessionProvider>
+        <SessionProvider>
+          <SocketProvider>{children}</SocketProvider>
+        </SessionProvider>
       </body>
     </html>
   );

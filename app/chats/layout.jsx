@@ -14,39 +14,52 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { User, Settings, LogOut } from "lucide-react";
-import Link from "next/link";
+import {
+  User,
+  Settings,
+  LogOut,
+  House,
+  Megaphone,
+  NotebookPen,
+} from "lucide-react";
+import { ChatProvider, useChat } from "@/context/ChatContext";
 
 export default function Layout({ children }) {
+  return (
+    <ChatProvider>
+      <ChatLayoutContent>{children}</ChatLayoutContent>
+    </ChatProvider>
+  );
+}
+
+function ChatLayoutContent({ children }) {
   const { data: session } = useSession();
+  const { selectedUser, setSelectedUser } = useChat();
   const [users, setUsers] = useState([]);
-  const [onlineUsers, setOnlineUsers] = useState([]); 
+  const [onlineUsers, setOnlineUsers] = useState([]);
+  const [notifications, setNotifications] = useState({}); // Notification State
   const [search, setSearch] = useState("");
   const socket = useRef(null);
 
-  // 1. Fetch ALL users
+  // Fetch Users
   useEffect(() => {
     const fetchUsers = async () => {
       try {
         const res = await fetch("/api/users");
         const data = await res.json();
-        
-        // Ensure IDs are strings to match NextAuth session ID type
-        const sanitized = data.map(u => ({
+        const sanitized = data.map((u) => ({
           ...u,
-          _id: String(u._id)
+          _id: String(u._id),
         }));
-
         setUsers(sanitized);
       } catch (err) {
         console.error("Failed to fetch users", err);
       }
     };
-    
     fetchUsers();
   }, []);
 
-  // 2. Socket connection
+  // Socket Connection & Notification Listener
   useEffect(() => {
     if (session?.user?.id) {
       socket.current = io("http://localhost:3000", {
@@ -55,60 +68,103 @@ export default function Layout({ children }) {
       });
 
       socket.current.on("get-online-users", (userIds) => {
-        setOnlineUsers(userIds.map(id => String(id)));
+        setOnlineUsers(userIds.map((id) => String(id)));
+      });
+
+      // Global Listener for Notifications
+      socket.current.on("receive-message", (msg) => {
+        const senderId = String(msg.sender);
+        // Only increment if the sender is NOT the currently selected user
+        if (senderId !== String(selectedUser?._id)) {
+          setNotifications((prev) => ({
+            ...prev,
+            [senderId]: (prev[senderId] || 0) + 1,
+          }));
+        }
       });
 
       return () => {
         if (socket.current) socket.current.disconnect();
       };
     }
-  }, [session?.user?.id]);
+  }, [session?.user?.id, selectedUser?._id]); // Re-run when selectedUser changes
+
+  const handleSelectUser = (user) => {
+    setSelectedUser(user);
+    // Clear notification for this user
+    setNotifications((prev) => ({
+      ...prev,
+      [String(user._id)]: 0,
+    }));
+  };
 
   return (
-    <div className="w-full h-screen flex flex-col bg-gray-100">
-      {/* HEADER SECTION - RESTORED ORIGINAL */}
-      <div className="w-full h-[60px] flex items-center justify-between px-4 bg-gray-200 shadow-sm">
-        <h1 className="text-4xl font-bold text-blue-900">BMS</h1>
-        
+    <div className="w-full h-screen flex flex-col bg-gray-100 font-sans text-slate-900">
+      {/* HEADER */}
+      <div className="w-full h-[60px] flex items-center justify-between px-6 bg-white border-b border-gray-200 z-50">
+        <h1 className="text-2xl font-black text-blue-600 tracking-tighter">
+          BMS CHAT
+        </h1>
+
+        <div className="flex gap-2">
+          <Button variant="outline">
+            <House className="mr-2 h-4 w-4" /> Home
+          </Button>
+
+          <Button variant="outline">
+            <Megaphone className="mr-2 h-4 w-4" /> Announcement
+          </Button>
+
+          {/* Added the label here */}
+          <Button variant="outline">
+            <NotebookPen className="mr-2 h-4 w-4" /> Post
+          </Button>
+        </div>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
               <div className="flex flex-col items-end">
-                <span className="text-sm font-medium hidden md:block leading-none">
-                  {session?.user?.name || session?.user?.fullname}
+                <span className="text-sm font-bold hidden md:block leading-none">
+                  {session?.user?.fullname || session?.user?.name}
                 </span>
-                <span className="text-[10px] text-green-600 font-bold">ONLINE</span>
+                <span className="text-[10px] text-green-600 font-black uppercase">
+                  Online
+                </span>
               </div>
-              <Avatar className="w-[40px] h-[40px] border-2 border-slate-800">
-                <AvatarFallback className="bg-slate-800 text-white">
-                  {session?.user?.name?.substring(0, 2).toUpperCase() || "US"}
+              <Avatar className="w-[38px] h-[38px] border-2 border-blue-600">
+                <AvatarFallback className="bg-slate-800 text-white text-xs">
+                  {session?.user?.fullname?.substring(0, 2).toUpperCase() ||
+                    "US"}
                 </AvatarFallback>
               </Avatar>
             </div>
           </DropdownMenuTrigger>
-          
-          <DropdownMenuContent className="w-56" align="end" forceMount>
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">{session?.user?.name}</p>
-                <p className="text-xs leading-none text-muted-foreground uppercase">
-                  {session?.user?.unit}
-                </p>
-              </div>
-            </DropdownMenuLabel>
+
+          <DropdownMenuContent className="w-56" align="end">
+            <DropdownMenuLabel>My Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="cursor-pointer">
-              <User className="mr-2 h-4 w-4" /> <span>Profile</span>
+
+            {/* Added Profile Item */}
+            <DropdownMenuItem onClick={() => router.push("/profile")}>
+              <User className="mr-2 h-4 w-4" />
+              <span>Profile</span>
             </DropdownMenuItem>
-            <DropdownMenuItem className="cursor-pointer">
-              <Settings className="mr-2 h-4 w-4" /> <span>Settings</span>
+
+            {/* Added Settings Item */}
+            <DropdownMenuItem onClick={() => router.push("/settings")}>
+              <Settings className="mr-2 h-4 w-4" />
+              <span>Settings</span>
             </DropdownMenuItem>
+
             <DropdownMenuSeparator />
-            <DropdownMenuItem 
-              className="cursor-pointer text-red-600 focus:text-red-600" 
+
+            <DropdownMenuItem
               onClick={() => signOut({ callbackUrl: "/" })}
+              className="text-red-600"
             >
-              <LogOut className="mr-2 h-4 w-4" /> <span>Log out</span>
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Log out</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -116,68 +172,79 @@ export default function Layout({ children }) {
 
       <div className="w-full flex-1 flex bg-white overflow-hidden">
         {/* SIDEBAR */}
-        <div className="w-[400px] h-full p-4 border-r flex flex-col">
-          <ButtonGroup className="w-full mb-4">
-            <Input 
-              placeholder="Search personnel..." 
+        <div className="w-[380px] h-full p-4 border-r flex flex-col bg-slate-50/50">
+          <div className="flex gap-2 mb-4">
+            <Input
+              placeholder="Search personnel..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              className="bg-white"
             />
-            <Button variant="outline">Search</Button>
-          </ButtonGroup>
+          </div>
 
-          {/* USER LIST - NO ACCORDION */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="flex flex-col gap-1">
-              {users
-                .filter((u) => 
-                  String(u._id) !== String(session?.user?.id) && 
-                  u.fullname?.toLowerCase().includes(search.toLowerCase())
-                )
-                .map((user) => {
-                  const isOnline = onlineUsers.includes(String(user._id));
-                  return (
-                    <Link 
-                      key={user._id} 
-                      href={`/chats/${user._id}`}
-                      className="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
-                    >
-                      <div className="relative">
-                        <Avatar className="h-10 w-10">
-                          <AvatarFallback className="bg-blue-100 text-blue-700 text-sm font-bold">
-                            {user.fullname?.substring(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        {isOnline && (
-                          <span className="absolute bottom-0 right-0 block h-3 w-3 rounded-full bg-green-500 ring-2 ring-white" />
+          <div className="flex-1 overflow-y-auto space-y-1 pr-2">
+            {users
+              .filter(
+                (u) =>
+                  String(u._id) !== String(session?.user?.id) &&
+                  u.fullname?.toLowerCase().includes(search.toLowerCase()),
+              )
+              .map((user) => {
+                const isOnline = onlineUsers.includes(String(user._id));
+                const isActive = selectedUser?._id === user._id;
+                const unreadCount = notifications[String(user._id)] || 0;
+
+                return (
+                  <div
+                    key={user._id}
+                    onClick={() => handleSelectUser(user)}
+                    className={`flex items-center gap-3 p-3 rounded-xl transition-all cursor-pointer border ${
+                      isActive
+                        ? "bg-blue-600 border-blue-600 shadow-md shadow-blue-100"
+                        : "bg-white border-transparent hover:border-slate-200 hover:bg-white"
+                    }`}
+                  >
+                    <div className="relative">
+                      <Avatar className="h-11 w-11 border-2 border-white">
+                        <AvatarFallback
+                          className={`${isActive ? "bg-blue-800 text-white" : "bg-blue-100 text-blue-700"} font-bold`}
+                        >
+                          {user.fullname?.substring(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      {isOnline && (
+                        <span className="absolute bottom-0 right-0 block h-3 w-3 rounded-full bg-green-500 ring-2 ring-white" />
+                      )}
+                    </div>
+
+                    <div className="flex-1 overflow-hidden">
+                      <div className="flex items-center justify-between">
+                        <span
+                          className={`text-sm font-bold truncate ${isActive ? "text-white" : "text-slate-800"}`}
+                        >
+                          {user.fullname}
+                        </span>
+
+                        {unreadCount > 0 && !isActive && (
+                          <span className="flex items-center justify-center bg-red-500 text-white text-[10px] font-black h-5 min-w-[20px] px-1.5 rounded-full shadow-sm transition-transform animate-in zoom-in duration-300">
+                            {unreadCount > 9 ? "9+" : unreadCount}
+                          </span>
                         )}
                       </div>
-                      <div className="flex flex-col text-black overflow-hidden">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold truncate">
-                            {user.fullname}
-                          </span>
-                          {isOnline && (
-                            <span className="text-[9px] text-green-600 font-bold uppercase">
-                              Active
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[10px] text-gray-500 uppercase truncate">
-                          {user.unit} | {user.office}
-                        </span>
-                      </div>
-                    </Link>
-                  );
-                })}
-            </div>
+                      <p
+                        className={`text-[10px] uppercase font-medium truncate ${isActive ? "text-blue-100" : "text-slate-500"}`}
+                      >
+                        {user.unit} | {user.office}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         </div>
 
-        {/* MAIN CONTENT AREA */}
-        <div className="flex-1 h-full bg-gray-50">
-          {children}
-        </div>
+        {/* MAIN CONTENT */}
+        <div className="flex-1 h-full bg-white">{children}</div>
       </div>
     </div>
   );

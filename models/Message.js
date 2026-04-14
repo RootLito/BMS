@@ -12,17 +12,17 @@ const MessageSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    content: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    seen: {
-      type: Boolean,
-      default: false,
-    },
+    content: { type: String, trim: true },
+    files: [
+      {
+        url: { type: String },
+        fileName: { type: String },
+        fileType: { type: String }, 
+      },
+    ],
+    seen: { type: Boolean, default: false },
   },
-  { timestamps: true } 
+  { timestamps: true },
 );
 
 export default mongoose.models.Message || mongoose.model("Message", MessageSchema);

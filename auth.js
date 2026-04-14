@@ -38,9 +38,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    // Add extra data (office, unit) to the session object
     async jwt({ token, user }) {
       if (user) {
+        token.id = user.id; // Store ID in the token
         token.office = user.office;
         token.unit = user.unit;
         token.username = user.username;
@@ -49,6 +49,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     async session({ session, token }) {
       if (token) {
+        session.user.id = token.id; // Pass ID to the session
         session.user.office = token.office;
         session.user.unit = token.unit;
         session.user.username = token.username;
