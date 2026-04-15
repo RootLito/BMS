@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { toast, Toaster } from "sonner"; // Using Sonner instead
+import { toast, Toaster } from "sonner"; 
 
 export default function Register() {
   const [loading, setLoading] = useState(false);

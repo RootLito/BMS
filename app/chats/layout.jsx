@@ -20,7 +20,7 @@ import {
   LogOut,
   House,
   Megaphone,
-  NotebookPen,
+  MessageCircleMore,
 } from "lucide-react";
 import { ChatProvider, useChat } from "@/context/ChatContext";
 
@@ -62,7 +62,9 @@ function ChatLayoutContent({ children }) {
   // Socket Connection & Notification Listener
   useEffect(() => {
     if (session?.user?.id) {
-      socket.current = io("http://localhost:3000", {
+      // Leave the URL empty or use window.location.origin
+      socket.current = io("https://bms.r11.bfar.da.gov.ph", {
+        path: "/socket.io",
         query: { userId: String(session.user.id) },
         transports: ["websocket"],
       });
@@ -110,14 +112,11 @@ function ChatLayoutContent({ children }) {
           <Button variant="outline">
             <House className="mr-2 h-4 w-4" /> Home
           </Button>
-
+          <Button variant="outline">
+            <MessageCircleMore /> Chats
+          </Button>
           <Button variant="outline">
             <Megaphone className="mr-2 h-4 w-4" /> Announcement
-          </Button>
-
-          {/* Added the label here */}
-          <Button variant="outline">
-            <NotebookPen className="mr-2 h-4 w-4" /> Post
           </Button>
         </div>
 

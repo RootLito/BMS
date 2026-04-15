@@ -28,7 +28,7 @@ export default function Home() {
       const res = await signIn("credentials", {
         username,
         password,
-        redirect: false, // Prevent automatic redirect so we can handle errors
+        redirect: false, 
       });
 
       if (res?.error) {
