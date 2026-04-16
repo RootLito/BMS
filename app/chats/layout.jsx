@@ -63,7 +63,7 @@ function ChatLayoutContent({ children }) {
   useEffect(() => {
     if (session?.user?.id) {
       // Leave the URL empty or use window.location.origin
-      socket.current = io("https://bms.r11.bfar.da.gov.ph", {
+      socket.current = io({
         path: "/socket.io",
         query: { userId: String(session.user.id) },
         transports: ["websocket"],

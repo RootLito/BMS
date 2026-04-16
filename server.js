@@ -3,10 +3,10 @@ const next = require("next");
 const { Server } = require("socket.io");
 const path = require("path");
 
-// Force load .env from the current directory
+
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 
-// Force dev to false for production environments
+
 const dev = false; 
 const port = process.env.PORT || 3000;
 const app = next({ dev });
@@ -17,11 +17,10 @@ const userSocketMap = new Map();
 app.prepare().then(() => {
   const httpServer = createServer(handler);
 
-  // Socket.io initialization
   const io = new Server(httpServer, {
     cors: { 
-      origin: "*", 
-      methods: ["GET", "POST"] 
+      origin: "http://bms.r11.bfar.da.gov.ph",
+      methods: ["GET", "POST"]
     },
     path: "/socket.io", 
   });
