@@ -6,8 +6,6 @@ export async function GET() {
   try {
     await dbConnect();
     
-    // Fetch all users from the database
-    // We select everything except the password for security
     const users = await User.find({}).select("-password");
     
     return NextResponse.json(users, { status: 200 });

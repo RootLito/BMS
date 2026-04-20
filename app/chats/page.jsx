@@ -10,7 +10,6 @@ import {
   X,
   Download,
   Loader2,
-  Film,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +33,7 @@ export default function Chats() {
   const imageInputRef = useRef(null);
   const docInputRef = useRef(null);
 
+  // Fetch History when user changes
   useEffect(() => {
     if (!selectedUser?._id) return;
     const fetchHistory = async () => {
@@ -52,28 +52,41 @@ export default function Chats() {
     setSelectedFiles([]);
   }, [selectedUser?._id]);
 
+  // Receive messages
   useEffect(() => {
     if (!socket) return;
+
     const handleReceive = (msg) => {
-      if (
-        String(msg.sender) === String(selectedUser?._id) ||
-        String(msg.sender) === String(session?.user?.id)
-      ) {
+      const isFromSelected = String(msg.sender) === String(selectedUser?._id);
+      const isFromMe = String(msg.sender) === String(session?.user?.id);
+
+      if (isFromSelected || isFromMe) {
         setMessages((prev) => {
           if (prev.find((m) => m._id === msg._id)) return prev;
+
+          // Map files for proper rendering
+          const files = (msg.files || []).map((f) => ({
+            ...f,
+            fileType: f.fileType.startsWith("image")
+              ? "image"
+              : f.fileType.startsWith("video")
+                ? "video"
+                : "file",
+          }));
+
           return [
-            ...prev.filter(
-              (m) => !(m.content === msg.content && m._id?.startsWith("temp-")),
-            ),
-            msg,
+            ...prev.filter((m) => !m._id?.startsWith("temp-")),
+            { ...msg, files },
           ];
         });
       }
     };
+
     socket.on("receive-message", handleReceive);
     return () => socket.off("receive-message", handleReceive);
   }, [socket, selectedUser?._id, session?.user?.id]);
 
+  // Scroll to bottom on new messages
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -82,9 +95,11 @@ export default function Chats() {
     if (
       (!input.trim() && selectedFiles.length === 0) ||
       isUploading ||
-      !selectedUser
+      !selectedUser ||
+      !socket
     )
       return;
+
     const currentInput = input;
     const currentFiles = [...selectedFiles];
     setInput("");
@@ -105,7 +120,12 @@ export default function Chats() {
           return {
             url: data.url,
             fileName: data.fileName || data.name,
-            fileType: data.type,
+            fileType: data.type.startsWith("image")
+              ? "image"
+              : data.type.startsWith("video")
+                ? "video"
+                : "file",
+            mimeType: data.type,
           };
         });
         uploadedFilesData = await Promise.all(uploadPromises);
@@ -123,30 +143,43 @@ export default function Chats() {
       content: currentInput,
       files: uploadedFilesData,
     };
+
+    // Optimistic Update
+    const tempId = `temp-${Date.now()}`;
     setMessages((prev) => [
       ...prev,
       {
         ...messageData,
         sender: session.user.id,
         createdAt: new Date(),
-        _id: `temp-${Date.now()}`,
+        _id: tempId,
+        files: uploadedFilesData,
       },
     ]);
+
+    // Emit message
     socket.emit("send-message", messageData);
   };
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
-    if (selectedFiles.length + files.length > 10)
-      return alert("You can only upload up to 10 files.");
+    if (selectedFiles.length + files.length > 10) return alert("Max 10 files.");
+
     const filesWithPreview = files.map((file) => ({
       file,
-      preview: file.type.startsWith("image/")
-        ? URL.createObjectURL(file)
-        : null,
+      preview:
+        file.type.startsWith("image") || file.type.startsWith("video")
+          ? URL.createObjectURL(file)
+          : null,
       name: file.name,
       type: file.type,
+      fileType: file.type.startsWith("image")
+        ? "image"
+        : file.type.startsWith("video")
+          ? "video"
+          : "file",
     }));
+
     setSelectedFiles((prev) => [...prev, ...filesWithPreview]);
   };
 
@@ -183,7 +216,7 @@ export default function Chats() {
             </div>
           ) : (
             messages.map((msg, idx) => {
-              const isMe = msg.sender === session?.user?.id;
+              const isMe = String(msg.sender) === String(session?.user?.id);
               return (
                 <div
                   key={msg._id || idx}
@@ -195,41 +228,41 @@ export default function Chats() {
                     <div
                       className={`p-3 rounded-2xl shadow-sm ${isMe ? "bg-blue-600 text-white rounded-tr-none" : "bg-white border text-slate-800 rounded-tl-none"}`}
                     >
-                      {msg.files?.length > 0 && (
+                      {msg.files?.map((f, i) => (
                         <div
-                          className={`grid gap-2 mb-2 ${msg.files.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}
+                          key={i}
+                          className="mb-2 rounded-lg overflow-hidden border bg-black/5"
                         >
-                          {msg.files.map((f, i) => (
-                            <div
-                              key={i}
-                              className="rounded-lg overflow-hidden border border-black/5 bg-black/5"
+                          {f.fileType === "image" && (
+                            <img
+                              src={f.url}
+                              className="w-full max-h-60 object-cover"
+                            />
+                          )}
+                          {f.fileType === "video" && (
+                            <video
+                              controls
+                              className="w-full max-h-60 object-cover"
                             >
-                              {f.fileType === "image" ? (
-                                <img
-                                  src={f.url}
-                                  className="w-full max-h-60 object-cover"
-                                  onClick={() => window.open(f.url)}
-                                />
-                              ) : (
-                                <a
-                                  href={f.url}
-                                  target="_blank"
-                                  className="flex items-center gap-3 p-3 text-xs font-medium"
-                                >
-                                  <FileText className="text-blue-500" />
-                                  <span className="truncate max-w-[120px]">
-                                    {f.fileName}
-                                  </span>
-                                  <Download
-                                    size={14}
-                                    className="ml-auto opacity-50"
-                                  />
-                                </a>
-                              )}
-                            </div>
-                          ))}
+                              <source
+                                src={f.url}
+                                type={f.mimeType || "video/mp4"}
+                              />
+                            </video>
+                          )}
+                          {f.fileType === "file" && (
+                            <a
+                              href={f.url}
+                              target="_blank"
+                              className="flex items-center gap-3 p-3 text-xs"
+                            >
+                              <FileText className="text-blue-500" />
+                              <span className="truncate">{f.fileName}</span>
+                              <Download size={14} />
+                            </a>
+                          )}
                         </div>
-                      )}
+                      ))}
                       {msg.content && (
                         <p className="text-sm leading-relaxed">{msg.content}</p>
                       )}
@@ -248,27 +281,28 @@ export default function Chats() {
           <div ref={scrollRef} />
         </div>
 
-        {/* File Previewer */}
         {selectedFiles.length > 0 && (
-          <div className="w-full bg-white border-t border-blue-100 p-4 animate-in slide-in-from-bottom duration-300">
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+          <div className="w-full bg-white border-t border-blue-100 p-4">
+            <div className="flex gap-3 overflow-x-auto pb-2">
               {selectedFiles.map((item, i) => (
                 <div
                   key={i}
-                  className="relative min-w-[100px] h-[100px] rounded-xl border-2 border-slate-100 overflow-hidden bg-slate-50 group shadow-sm"
+                  className="relative min-w-[100px] h-[100px] rounded-xl border bg-slate-50 overflow-hidden"
                 >
                   {item.preview ? (
-                    <img
-                      src={item.preview}
-                      className="w-full h-full object-cover"
-                    />
+                    item.fileType === "image" ? (
+                      <img
+                        src={item.preview}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <video
+                        src={item.preview}
+                        className="w-full h-full object-cover"
+                      />
+                    )
                   ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center">
-                      <FileText className="text-blue-500 mb-1" />
-                      <span className="text-[10px] font-bold text-slate-500 truncate w-full px-1">
-                        {item.name}
-                      </span>
-                    </div>
+                    <FileText className="m-auto mt-8 text-blue-500" />
                   )}
                   <button
                     onClick={() =>
@@ -286,7 +320,6 @@ export default function Chats() {
           </div>
         )}
 
-        {/* --- YOUR SPECIFIC INPUT BLOCK --- */}
         <div className="w-full bg-white border-t p-4 flex items-center gap-2 z-20">
           <input
             type="file"
@@ -299,12 +332,11 @@ export default function Chats() {
           <input
             type="file"
             ref={docInputRef}
-            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+            accept=".pdf,.doc,.docx,.xls,.xlsx"
             multiple
             onChange={handleFileChange}
             className="hidden"
           />
-
           <Button
             type="button"
             variant="ghost"
@@ -323,16 +355,13 @@ export default function Chats() {
           >
             <Paperclip className="text-blue-500 w-5 h-5" />
           </Button>
-
           <Input
-            placeholder={
-              isUploading ? "Sending files..." : "Write a message..."
-            }
+            placeholder={isUploading ? "Sending..." : "Write a message..."}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
             disabled={!selectedUser || isUploading}
-            className="flex-1 bg-slate-100 border-none focus-visible:ring-blue-500 rounded-xl"
+            className="flex-1 bg-slate-100 border-none rounded-xl"
           />
           <Button
             onClick={handleSendMessage}
@@ -341,7 +370,7 @@ export default function Chats() {
               !selectedUser ||
               isUploading
             }
-            className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-5 transition-all shadow-md shadow-blue-200"
+            className="bg-blue-600 text-white rounded-xl px-5"
           >
             {isUploading ? (
               <Loader2 className="animate-spin w-4 h-4" />
@@ -351,9 +380,7 @@ export default function Chats() {
           </Button>
         </div>
       </div>
-      {/* --- END INPUT BLOCK --- */}
 
-      {/* Info Sidebar */}
       <div
         className={`h-full bg-white border-l transition-all duration-500 ease-in-out ${isInfoOpen ? "w-[350px] opacity-100" : "w-0 opacity-0 overflow-hidden"}`}
       >

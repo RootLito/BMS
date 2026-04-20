@@ -28,12 +28,10 @@ export default function Register() {
       });
 
       if (res.ok) {
-        // Sonner syntax is much cleaner:
         toast.success("Successfully Registered!", {
           description: `Account for ${formData.fullname} is now ready.`,
         });
 
-        // Clear the inputs
         setFormData({
           fullname: "",
           username: "",
@@ -56,7 +54,6 @@ export default function Register() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
-      {/* Sonner Toaster component stays here just for this page */}
       <Toaster richColors position="top-center" />
 
       <form onSubmit={handleSubmit} className="p-8 bg-white shadow-lg rounded-xl w-full max-w-md space-y-4">

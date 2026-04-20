@@ -6,30 +6,30 @@ import { io } from "socket.io-client";
 const SocketContext = createContext();
 
 export const SocketProvider = ({ children }) => {
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
   const [socket, setSocket] = useState(null);
   const [onlineUsers, setOnlineUsers] = useState([]);
 
   useEffect(() => {
-    // Only connect if the user is authenticated and has an ID
-    if (status === "authenticated" && session?.user?.id) {
-      const newSocket = io("http://localhost:3000", {
-        query: { userId: session.user.id },
-      });
+    if (!session?.user?.id) return;
 
-      setSocket(newSocket);
+    const newSocket = io("https://bms.r11.bfar.da.gov.ph", {
+      path: "/socket.io",
+      query: { userId: String(session.user.id) },
+      transports: ["websocket"],
+    });
 
-      newSocket.on("get-online-users", (users) => {
-        setOnlineUsers(users);
-      });
+    setSocket(newSocket);
 
-      // Cleanup on logout or unmount
-      return () => {
-        newSocket.close();
-        setSocket(null);
-      };
-    }
-  }, [session, status]);
+    newSocket.on("get-online-users", (userIds) => {
+      setOnlineUsers(userIds.map((id) => String(id)));
+    });
+
+    return () => {
+      newSocket.disconnect();
+      setSocket(null);
+    };
+  }, [session?.user?.id]);
 
   return (
     <SocketContext.Provider value={{ socket, onlineUsers }}>

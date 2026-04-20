@@ -1,8 +1,7 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { io } from "socket.io-client";
-import { ButtonGroup } from "@/components/ui/button-group";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -23,6 +22,7 @@ import {
   MessageCircleMore,
 } from "lucide-react";
 import { ChatProvider, useChat } from "@/context/ChatContext";
+import { useSocket } from "@/context/SocketContext";
 
 export default function Layout({ children }) {
   return (
@@ -35,13 +35,12 @@ export default function Layout({ children }) {
 function ChatLayoutContent({ children }) {
   const { data: session } = useSession();
   const { selectedUser, setSelectedUser } = useChat();
+  const { socket, onlineUsers } = useSocket(); // Using the shared socket
   const [users, setUsers] = useState([]);
-  const [onlineUsers, setOnlineUsers] = useState([]);
-  const [notifications, setNotifications] = useState({}); // Notification State
+  const [notifications, setNotifications] = useState({});
   const [search, setSearch] = useState("");
-  const socket = useRef(null);
+  const router = useRouter();
 
-  // Fetch Users
   useEffect(() => {
     const fetchUsers = async () => {
       try {
@@ -59,41 +58,26 @@ function ChatLayoutContent({ children }) {
     fetchUsers();
   }, []);
 
-  // Socket Connection & Notification Listener
+  // Listen for background notifications
   useEffect(() => {
-    if (session?.user?.id) {
-      // Leave the URL empty or use window.location.origin
-      socket.current = io({
-        path: "/socket.io",
-        query: { userId: String(session.user.id) },
-        transports: ["websocket"],
-      });
+    if (!socket) return;
 
-      socket.current.on("get-online-users", (userIds) => {
-        setOnlineUsers(userIds.map((id) => String(id)));
-      });
+    const handleNotification = (msg) => {
+      const senderId = String(msg.sender);
+      if (senderId !== String(selectedUser?._id)) {
+        setNotifications((prev) => ({
+          ...prev,
+          [senderId]: (prev[senderId] || 0) + 1,
+        }));
+      }
+    };
 
-      // Global Listener for Notifications
-      socket.current.on("receive-message", (msg) => {
-        const senderId = String(msg.sender);
-        // Only increment if the sender is NOT the currently selected user
-        if (senderId !== String(selectedUser?._id)) {
-          setNotifications((prev) => ({
-            ...prev,
-            [senderId]: (prev[senderId] || 0) + 1,
-          }));
-        }
-      });
-
-      return () => {
-        if (socket.current) socket.current.disconnect();
-      };
-    }
-  }, [session?.user?.id, selectedUser?._id]); // Re-run when selectedUser changes
+    socket.on("receive-message", handleNotification);
+    return () => socket.off("receive-message", handleNotification);
+  }, [socket, selectedUser?._id]);
 
   const handleSelectUser = (user) => {
     setSelectedUser(user);
-    // Clear notification for this user
     setNotifications((prev) => ({
       ...prev,
       [String(user._id)]: 0,
@@ -102,12 +86,10 @@ function ChatLayoutContent({ children }) {
 
   return (
     <div className="w-full h-screen flex flex-col bg-gray-100 font-sans text-slate-900">
-      {/* HEADER */}
       <div className="w-full h-[60px] flex items-center justify-between px-6 bg-white border-b border-gray-200 z-50">
         <h1 className="text-2xl font-black text-blue-600 tracking-tighter">
           BMS CHAT
         </h1>
-
         <div className="flex gap-2">
           <Button variant="outline">
             <House className="mr-2 h-4 w-4" /> Home
@@ -119,7 +101,6 @@ function ChatLayoutContent({ children }) {
             <Megaphone className="mr-2 h-4 w-4" /> Announcement
           </Button>
         </div>
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
@@ -139,25 +120,18 @@ function ChatLayoutContent({ children }) {
               </Avatar>
             </div>
           </DropdownMenuTrigger>
-
           <DropdownMenuContent className="w-56" align="end">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
-
-            {/* Added Profile Item */}
             <DropdownMenuItem onClick={() => router.push("/profile")}>
               <User className="mr-2 h-4 w-4" />
               <span>Profile</span>
             </DropdownMenuItem>
-
-            {/* Added Settings Item */}
             <DropdownMenuItem onClick={() => router.push("/settings")}>
               <Settings className="mr-2 h-4 w-4" />
               <span>Settings</span>
             </DropdownMenuItem>
-
             <DropdownMenuSeparator />
-
             <DropdownMenuItem
               onClick={() => signOut({ callbackUrl: "/" })}
               className="text-red-600"
@@ -170,7 +144,6 @@ function ChatLayoutContent({ children }) {
       </div>
 
       <div className="w-full flex-1 flex bg-white overflow-hidden">
-        {/* SIDEBAR */}
         <div className="w-[380px] h-full p-4 border-r flex flex-col bg-slate-50/50">
           <div className="flex gap-2 mb-4">
             <Input
@@ -180,7 +153,6 @@ function ChatLayoutContent({ children }) {
               className="bg-white"
             />
           </div>
-
           <div className="flex-1 overflow-y-auto space-y-1 pr-2">
             {users
               .filter(
@@ -192,7 +164,6 @@ function ChatLayoutContent({ children }) {
                 const isOnline = onlineUsers.includes(String(user._id));
                 const isActive = selectedUser?._id === user._id;
                 const unreadCount = notifications[String(user._id)] || 0;
-
                 return (
                   <div
                     key={user._id}
@@ -215,7 +186,6 @@ function ChatLayoutContent({ children }) {
                         <span className="absolute bottom-0 right-0 block h-3 w-3 rounded-full bg-green-500 ring-2 ring-white" />
                       )}
                     </div>
-
                     <div className="flex-1 overflow-hidden">
                       <div className="flex items-center justify-between">
                         <span
@@ -223,9 +193,8 @@ function ChatLayoutContent({ children }) {
                         >
                           {user.fullname}
                         </span>
-
                         {unreadCount > 0 && !isActive && (
-                          <span className="flex items-center justify-center bg-red-500 text-white text-[10px] font-black h-5 min-w-[20px] px-1.5 rounded-full shadow-sm transition-transform animate-in zoom-in duration-300">
+                          <span className="flex items-center justify-center bg-red-500 text-white text-[10px] font-black h-5 min-w-[20px] px-1.5 rounded-full shadow-sm">
                             {unreadCount > 9 ? "9+" : unreadCount}
                           </span>
                         )}
@@ -241,8 +210,6 @@ function ChatLayoutContent({ children }) {
               })}
           </div>
         </div>
-
-        {/* MAIN CONTENT */}
         <div className="flex-1 h-full bg-white">{children}</div>
       </div>
     </div>

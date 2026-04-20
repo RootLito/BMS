@@ -19,7 +19,7 @@ app.prepare().then(() => {
 
   const io = new Server(httpServer, {
     cors: { 
-      origin: "http://bms.r11.bfar.da.gov.ph",
+      origin: "https://bms.r11.bfar.da.gov.ph",
       methods: ["GET", "POST"]
     },
     path: "/socket.io", 
