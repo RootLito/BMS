@@ -35,7 +35,7 @@ export default function Home() {
         setError("Invalid username or password");
         setLoading(false);
       } else {
-        router.push("/chats");
+        router.push("/chats/home");
         router.refresh();
       }
     } catch (err) {
