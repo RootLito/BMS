@@ -1,9 +1,9 @@
-import dbConnect from "@/lib/mongodb";
-import User from "@/models/User";
-import Message from "@/models/Message";
-import mongoose from "mongoose";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import dbConnect from "@/lib/mongodb";
+import User from "@/models/User";
+import mongoose from "mongoose";
+
 
 export async function GET() {
   try {
