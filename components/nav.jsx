@@ -25,7 +25,7 @@ export default function Nav() {
   const router = useRouter();
 
   return (
-    <div className="w-full h-[60px] flex items-center justify-between px-6 bg-white border-b border-gray-200 z-50">
+    <div className="w-full h-[60px] flex items-center justify-between px-6 bg-white border-b border-gray-200 sticky top-0 z-50">
       <h1 className="text-2xl font-black text-blue-600 tracking-tighter">
         BMS CHAT
       </h1>

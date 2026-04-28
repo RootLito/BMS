@@ -6,8 +6,13 @@ const UserSchema = new mongoose.Schema({
   password: { type: String, required: true },
   office: { type: String, required: true },
   unit: { type: String, required: true },
-}, { 
-  timestamps: true 
+  profile: { type: String, default: "" },
+  gender: { type: String, default: "" },
+  birthday: { type: Date },
+  civilStatus: { type: String, default: "" },
+  address: { type: String, default: "" },
+}, {
+  timestamps: true
 });
 
 export default mongoose.models.User || mongoose.model("User", UserSchema);
