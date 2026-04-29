@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"; // Added AvatarImage
 import {
   User,
   Settings,
@@ -18,6 +18,7 @@ import {
   House,
   Megaphone,
   MessageCircleMore,
+  Fish,
 } from "lucide-react";
 
 export default function Nav() {
@@ -26,8 +27,8 @@ export default function Nav() {
 
   return (
     <div className="w-full h-[60px] flex items-center justify-between px-6 bg-white border-b border-gray-200 sticky top-0 z-50">
-      <h1 className="text-2xl font-black text-blue-600 tracking-tighter">
-        BMS CHAT
+      <h1 className="text-2xl font-black text-blue-600 flex items-center">
+        <Fish strokeWidth={3} className="mr-2" /> FISHBOOK
       </h1>
 
       <div className="flex gap-2">
@@ -37,7 +38,10 @@ export default function Nav() {
         <Button variant="outline" onClick={() => router.push("/chats/message")}>
           <MessageCircleMore className="mr-2 h-4 w-4" /> Chats
         </Button>
-        <Button variant="outline" onClick={() => router.push("/chats/announcement")}>
+        <Button
+          variant="outline"
+          onClick={() => router.push("/chats/announcement")}
+        >
           <Megaphone className="mr-2 h-4 w-4" /> Announcement
         </Button>
       </div>
@@ -53,9 +57,15 @@ export default function Nav() {
                 Online
               </span>
             </div>
-            <Avatar className="w-[38px] h-[38px] border-2 border-blue-600">
+            <Avatar className="w-[38px] h-[38px]">
+              <AvatarImage
+                src={session?.user?.profile}
+                className="object-cover"
+              />
               <AvatarFallback className="bg-slate-800 text-white text-xs">
-                {session?.user?.fullname?.substring(0, 2).toUpperCase() || "US"}
+                {session?.user?.fullname?.[0] ||
+                  session?.user?.name?.[0] ||
+                  "U"}
               </AvatarFallback>
             </Avatar>
           </div>

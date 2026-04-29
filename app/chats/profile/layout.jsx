@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import Cropper from "react-easy-crop";
-import { File, User, Pencil, Upload, X } from "lucide-react";
+import { File, User, Pencil, Upload, X, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
@@ -19,12 +20,51 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
+// Helper function to create the cropped image file
+async function getCroppedImg(imageSrc, pixelCrop) {
+  const image = new Image();
+  image.src = imageSrc;
+  await new Promise((resolve) => (image.onload = resolve));
+
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
+  canvas.width = pixelCrop.width;
+  canvas.height = pixelCrop.height;
+
+  ctx.drawImage(
+    image,
+    pixelCrop.x,
+    pixelCrop.y,
+    pixelCrop.width,
+    pixelCrop.height,
+    0,
+    0,
+    pixelCrop.width,
+    pixelCrop.height,
+  );
+
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => {
+      resolve(blob);
+    }, "image/jpeg");
+  });
+}
+
 export default function ProfileLayout({ children }) {
-  const { data: session } = useSession();
+  const { data: session, update } = useSession();
+  const router = useRouter();
 
   const [image, setImage] = useState(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  const onCropComplete = useCallback((_, pixels) => {
+    setCroppedAreaPixels(pixels);
+  }, []);
 
   const onSelectFile = (e) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -34,14 +74,89 @@ export default function ProfileLayout({ children }) {
     }
   };
 
+  // const handleSave = async () => {
+  //   try {
+  //     setLoading(true);
+  //     const croppedBlob = await getCroppedImg(image, croppedAreaPixels);
+  //     const file = new window.File([croppedBlob], "profile.jpg", {
+  //       type: "image/jpeg",
+  //     });
+
+  //     const formData = new FormData();
+  //     formData.append("file", file);
+
+  //     const res = await fetch("/api/users/profile", {
+  //       method: "POST",
+  //       body: formData,
+  //     });
+
+  //     if (res.ok) {
+  //       // Refresh session and UI
+  //       await update();
+  //       setOpen(false);
+  //       setImage(null);
+  //       router.refresh();
+  //     }
+  //   } catch (error) {
+  //     console.error("Upload error:", error);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+  const handleSave = async () => {
+    try {
+      setLoading(true);
+      const croppedBlob = await getCroppedImg(image, croppedAreaPixels);
+      const file = new window.File([croppedBlob], "profile.jpg", {
+        type: "image/jpeg",
+      });
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/users/profile", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        await update({
+          ...session,
+          user: {
+            ...session?.user,
+            profile: data.profile,
+          },
+        });
+        setOpen(false);
+        setImage(null);
+        router.refresh();
+      }
+    } catch (error) {
+      console.error("Upload error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="flex-1 bg-gray-50 overflow-y-auto">
       <div className="w-[700px] mx-auto flex flex-col gap-4 p-4">
         <Card className="relative overflow-hidden border-none shadow-md">
           <div className="absolute top-4 right-4 z-10">
-            <Dialog onOpenChange={(open) => !open && setImage(null)}>
+            <Dialog
+              open={open}
+              onOpenChange={(val) => {
+                setOpen(val);
+                if (!val) setImage(null);
+              }}
+            >
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2 h-9 px-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 h-9 px-3 bg-white/80 backdrop-blur hover:bg-white transition-all shadow-sm"
+                >
                   <Pencil className="h-3.5 w-3.5" /> Edit Profile
                 </Button>
               </DialogTrigger>
@@ -51,17 +166,14 @@ export default function ProfileLayout({ children }) {
                   <DialogTitle className="text-xl font-bold tracking-tight">
                     Update Profile Picture
                   </DialogTitle>
-                  {/* INSTRUCTIONS ARE BACK */}
                   <DialogDescription className="text-sm text-muted-foreground mt-1">
                     Click to select an image. Once uploaded,{" "}
                     <strong>drag the photo</strong> to reposition and{" "}
-                    <strong>scroll</strong> to zoom. No fixed aspect ratio—crop
-                    it how you like.
+                    <strong>scroll</strong> to zoom.
                   </DialogDescription>
                 </DialogHeader>
 
-                {/* CROP AREA - FULL BLEED (EDGE TO EDGE) */}
-                <div className="relative h-[450px] w-full bg-neutral-900">
+                <div className="relative h-[400px] w-full bg-neutral-900">
                   {!image ? (
                     <div className="relative group flex flex-col items-center justify-center h-full w-full bg-gray-50 hover:bg-gray-100 transition-all cursor-pointer">
                       <input
@@ -81,8 +193,12 @@ export default function ProfileLayout({ children }) {
                         image={image}
                         crop={crop}
                         zoom={zoom}
+                        aspect={1} // Force square for profile pictures
+                        cropShape="round" // Visual guide
+                        showGrid={false}
                         onCropChange={setCrop}
                         onZoomChange={setZoom}
+                        onCropComplete={onCropComplete}
                       />
                       <Button
                         variant="secondary"
@@ -99,9 +215,13 @@ export default function ProfileLayout({ children }) {
                 <DialogFooter className="p-6 border-t bg-gray-50/80 justify-end">
                   <Button
                     type="button"
-                    disabled={!image}
-                    className="px-6 bg-blue-600 hover:bg-blue-700 text-sm"
+                    disabled={!image || loading}
+                    onClick={handleSave}
+                    className="px-6 bg-blue-600 hover:bg-blue-700 text-sm font-bold"
                   >
+                    {loading ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : null}
                     Save Changes
                   </Button>
                 </DialogFooter>
@@ -109,39 +229,41 @@ export default function ProfileLayout({ children }) {
             </Dialog>
           </div>
 
-          <CardContent className="flex items-center gap-4">
-            <Avatar className="h-24 w-24">
-              <AvatarImage
-                src={session?.user?.image || "https://github.com/shadcn.png"}
-                className="object-cover"
-              />
-              <AvatarFallback className="text-2xl font-bold bg-slate-100">
-                U
-              </AvatarFallback>
-            </Avatar>
+          <CardContent className="flex items-center gap-6">
+            <div className="relative">
+              <Avatar className="h-32 w-32">
+                <AvatarImage
+                  src={session?.user?.profile}
+                  className="object-cover"
+                />
+                <AvatarFallback className="text-4xl font-bold bg-slate-100">
+                  {session?.user?.fullname?.[0] || "U"}
+                </AvatarFallback>
+              </Avatar>
+            </div>
 
             <div className="space-y-1">
-              <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+              <h2 className="text-3xl font-black text-slate-900 tracking-tight">
                 {session?.user?.fullname || session?.user?.name}
               </h2>
-              <p className="text-sm font-bold text-blue-600 uppercase tracking-widest italic">
+              <p className="text-sm font-bold text-blue-600 uppercase tracking-widest italic bg-blue-50 w-fit px-2 py-0.5 rounded">
                 {session?.user?.office}
               </p>
             </div>
           </CardContent>
 
-          <CardFooter className="gap-10 border-t justify-center py-5 bg-gray-50/50">
+          <CardFooter className="gap-10 border-t justify-center py-4 bg-gray-50/50">
             <Link
               href="/chats/profile/posts"
-              className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold transition text-xs"
+              className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold transition text-[13px]"
             >
-              <File size={16} /> Posts
+              <File size={18} /> Posts
             </Link>
             <Link
               href="/chats/profile/about"
-              className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold transition text-xs"
+              className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold transition text-[13px]"
             >
-              <User size={16} /> About
+              <User size={18} /> About
             </Link>
           </CardFooter>
         </Card>

@@ -2,20 +2,36 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import dbConnect from "@/lib/mongodb";
 import Post from "@/models/Post";
-import User from "@/models/User"; 
+import User from "@/models/User";
 import { writeFile } from "fs/promises";
 import { join } from "path";
 
+
 export async function GET() {
-    try {
-        await dbConnect();
-        const posts = await Post.find()
-            .populate("author", "fullname username image office")
-            .sort({ createdAt: -1 });
-        return NextResponse.json(posts);
-    } catch (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    await dbConnect();
+    const posts = await Post.aggregate([
+        {
+            $lookup: {
+                from: "comments",
+                localField: "_id",
+                foreignField: "post",
+                as: "allComments",
+            },
+        },
+        {
+            $addFields: {
+                commentsCount: { $size: "$allComments" },
+            },
+        },
+        { $sort: { createdAt: -1 } }
+    ]);
+
+    const populatedPosts = await Post.populate(posts, [
+        { path: "author", select: "fullname image" },
+        { path: "reacts.user", select: "fullname image" }
+    ]);
+
+    return NextResponse.json(populatedPosts);
 }
 
 export async function POST(req) {
@@ -25,14 +41,12 @@ export async function POST(req) {
 
         await dbConnect();
 
-        // 1. Use formData() instead of json() to get the files
         const data = await req.formData();
         const content = data.get("content");
-        const files = data.getAll("files"); // This gets all uploaded files
+        const files = data.getAll("files");
 
         const uploadedFilesData = [];
 
-        // 2. Process and save each file to your public folder
         for (const file of files) {
             const bytes = await file.arrayBuffer();
             const buffer = Buffer.from(bytes);
@@ -48,7 +62,6 @@ export async function POST(req) {
             });
         }
 
-        // 3. Create the post with the locally saved URLs
         const newPost = await Post.create({
             content,
             files: uploadedFilesData,

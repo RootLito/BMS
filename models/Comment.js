@@ -23,7 +23,7 @@ const CommentSchema = new mongoose.Schema({
     },
     reacts: [{
         user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-        type: { type: String, default: "like" }
+        type: { type: String, required: true } 
     }]
 }, {
     timestamps: true

@@ -25,11 +25,7 @@ const PostSchema = new mongoose.Schema({
   ],
   reacts: [{
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    type: {
-      type: String,
-      enum: ["like", "love", "haha", "wow", "sad", "angry"],
-      default: "like"
-    }
+    type: { type: String, required: true }
   }]
 }, {
   timestamps: true,
