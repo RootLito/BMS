@@ -14,6 +14,7 @@ import {
   MapPin,
   MoreHorizontal,
   Loader2,
+  X,
 } from "lucide-react";
 
 import {
@@ -180,6 +181,9 @@ export default function HomePage() {
   const [open, setOpen] = useState(false);
   const [activePostComments, setActivePostComments] = useState([]);
   const [commentText, setCommentText] = useState("");
+
+  // Fullscreen State
+  const [selectedImage, setSelectedImage] = useState(null);
 
   const fileInputRef = useRef(null);
 
@@ -372,7 +376,7 @@ export default function HomePage() {
                     </Avatar>
                     <div className="flex flex-col">
                       <p className="font-semibold text-sm leading-tight text-left">
-                        {session?.user?.name || "User Name"}
+                        {session?.user?.fullname || "User Name"}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {session?.user?.unit}
@@ -471,7 +475,11 @@ export default function HomePage() {
                   <div className="flex items-center gap-2">
                     <Avatar size="lg">
                       <AvatarImage
-                        src={post.author?.profile}
+                        src={
+                          post.author?.profile?.startsWith("/")
+                            ? post.author.profile
+                            : `/profiles/${post.author?.profile}`
+                        }
                         className="object-cover"
                       />
 
@@ -501,7 +509,11 @@ export default function HomePage() {
                       {post.files.map((file, idx) => (
                         <div
                           key={idx}
-                          className="rounded-lg overflow-hidden border"
+                          className="rounded-lg overflow-hidden border cursor-pointer hover:opacity-95 transition"
+                          onClick={() =>
+                            file.fileType === "image" &&
+                            setSelectedImage(file.url)
+                          }
                         >
                           {file.fileType === "image" ? (
                             <img
@@ -725,6 +737,23 @@ export default function HomePage() {
           })}
         </div>
       </div>
+
+      {/* FULLSCREEN IMAGE MODAL */}
+      {selectedImage && (
+        <div className="fixed inset-0 z-[9999] bg-black/95 flex items-center justify-center p-4">
+          <button
+            onClick={() => setSelectedImage(null)}
+            className="absolute top-6 right-6 text-white hover:bg-white/10 p-2 rounded-full transition-colors"
+          >
+            <X className="w-8 h-8" />
+          </button>
+          <img
+            src={selectedImage}
+            className="max-w-full max-h-full object-contain"
+            alt="Fullscreen preview"
+          />
+        </div>
+      )}
     </div>
   );
 }

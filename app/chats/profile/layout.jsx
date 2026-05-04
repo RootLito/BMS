@@ -20,7 +20,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-// Helper function to create the cropped image file
 async function getCroppedImg(imageSrc, pixelCrop) {
   const image = new Image();
   image.src = imageSrc;
@@ -74,40 +73,13 @@ export default function ProfileLayout({ children }) {
     }
   };
 
-  // const handleSave = async () => {
-  //   try {
-  //     setLoading(true);
-  //     const croppedBlob = await getCroppedImg(image, croppedAreaPixels);
-  //     const file = new window.File([croppedBlob], "profile.jpg", {
-  //       type: "image/jpeg",
-  //     });
-
-  //     const formData = new FormData();
-  //     formData.append("file", file);
-
-  //     const res = await fetch("/api/users/profile", {
-  //       method: "POST",
-  //       body: formData,
-  //     });
-
-  //     if (res.ok) {
-  //       // Refresh session and UI
-  //       await update();
-  //       setOpen(false);
-  //       setImage(null);
-  //       router.refresh();
-  //     }
-  //   } catch (error) {
-  //     console.error("Upload error:", error);
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
   const handleSave = async () => {
     try {
       setLoading(true);
       const croppedBlob = await getCroppedImg(image, croppedAreaPixels);
-      const file = new window.File([croppedBlob], "profile.jpg", {
+      
+      // Using a clean, safe filename for the server
+      const file = new window.File([croppedBlob], "profile-picture.jpg", {
         type: "image/jpeg",
       });
 
@@ -167,9 +139,7 @@ export default function ProfileLayout({ children }) {
                     Update Profile Picture
                   </DialogTitle>
                   <DialogDescription className="text-sm text-muted-foreground mt-1">
-                    Click to select an image. Once uploaded,{" "}
-                    <strong>drag the photo</strong> to reposition and{" "}
-                    <strong>scroll</strong> to zoom.
+                    Click to select an image. Once uploaded, drag the photo to reposition and scroll to zoom.
                   </DialogDescription>
                 </DialogHeader>
 
@@ -193,8 +163,8 @@ export default function ProfileLayout({ children }) {
                         image={image}
                         crop={crop}
                         zoom={zoom}
-                        aspect={1} // Force square for profile pictures
-                        cropShape="round" // Visual guide
+                        aspect={1}
+                        cropShape="round"
                         showGrid={false}
                         onCropChange={setCrop}
                         onZoomChange={setZoom}
@@ -217,11 +187,9 @@ export default function ProfileLayout({ children }) {
                     type="button"
                     disabled={!image || loading}
                     onClick={handleSave}
-                    className="px-6 bg-blue-600 hover:bg-blue-700 text-sm font-bold"
+                    className="px-6 bg-blue-600 hover:bg-blue-700 text-sm font-bold text-white"
                   >
-                    {loading ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : null}
+                    {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                     Save Changes
                   </Button>
                 </DialogFooter>
@@ -229,7 +197,7 @@ export default function ProfileLayout({ children }) {
             </Dialog>
           </div>
 
-          <CardContent className="flex items-center gap-6">
+          <CardContent className="flex items-center gap-6 p-6">
             <div className="relative">
               <Avatar className="h-32 w-32">
                 <AvatarImage

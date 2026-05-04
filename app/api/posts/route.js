@@ -3,12 +3,12 @@ import { auth } from "@/auth";
 import dbConnect from "@/lib/mongodb";
 import Post from "@/models/Post";
 import User from "@/models/User";
-import { writeFile } from "fs/promises";
+import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
-
 
 export async function GET() {
     await dbConnect();
+
     const posts = await Post.aggregate([
         {
             $lookup: {
@@ -27,8 +27,8 @@ export async function GET() {
     ]);
 
     const populatedPosts = await Post.populate(posts, [
-        { path: "author", select: "fullname image" },
-        { path: "reacts.user", select: "fullname image" }
+        { path: "author", select: "fullname profile" },
+        { path: "reacts.user", select: "fullname profile" }
     ]);
 
     return NextResponse.json(populatedPosts);
@@ -46,12 +46,17 @@ export async function POST(req) {
         const files = data.getAll("files");
 
         const uploadedFilesData = [];
+        const uploadDir = join(process.cwd(), "public", "uploads");
+
+        await mkdir(uploadDir, { recursive: true });
 
         for (const file of files) {
             const bytes = await file.arrayBuffer();
             const buffer = Buffer.from(bytes);
-            const fileName = `${Date.now()}-${file.name}`;
-            const path = join(process.cwd(), "public", "uploads", fileName);
+
+            const safeFileName = file.name.replace(/\s+/g, '-').toLowerCase();
+            const fileName = `${Date.now()}-${safeFileName}`;
+            const path = join(uploadDir, fileName);
 
             await writeFile(path, buffer);
 
@@ -69,7 +74,7 @@ export async function POST(req) {
         });
 
         const populatedPost = await Post.findById(newPost._id)
-            .populate("author", "fullname username image office");
+            .populate("author", "fullname username profile office");
 
         return NextResponse.json(populatedPost);
     } catch (error) {

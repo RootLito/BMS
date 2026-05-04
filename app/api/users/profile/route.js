@@ -2,9 +2,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
-import { writeFile } from "fs/promises";
+import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
-import { mkdir } from "fs/promises";
 
 export async function POST(req) {
   try {
@@ -25,26 +24,21 @@ export async function POST(req) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    const fileName = `${Date.now()}-${file.name}`;
+    const safeFileName = file.name.replace(/\s+/g, '-').toLowerCase();
+    const fileName = `${Date.now()}-${safeFileName}`;
     const uploadDir = join(process.cwd(), "public", "profiles");
 
-    // Ensure directory exists
-    try {
-      await mkdir(uploadDir, { recursive: true });
-    } catch (err) {
-      // Directory already exists
-    }
+    await mkdir(uploadDir, { recursive: true });
 
-    const path = join(uploadDir, fileName);
-    await writeFile(path, buffer);
+    const filePath = join(uploadDir, fileName);
+    await writeFile(filePath, buffer);
 
     const imageUrl = `/profiles/${fileName}`;
 
-    // Update User model
     const updatedUser = await User.findByIdAndUpdate(
       session.user.id || session.user.sub,
       { profile: imageUrl },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     return NextResponse.json(updatedUser);
